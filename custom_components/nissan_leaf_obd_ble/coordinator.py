@@ -99,12 +99,14 @@ class NissanLeafObdBleDataUpdateCoordinator(DataUpdateCoordinator):
                 extra_commands = self.extra_commands
                 disabled_commands = self.disabled_commands
 
+            async_get_data_kwargs = {}
+            if extra_commands:
+                async_get_data_kwargs["extra_commands"] = extra_commands
+            if disabled_commands:
+                async_get_data_kwargs["disabled_commands"] = disabled_commands
+
             new_data = await asyncio.wait_for(
-                self.api.async_get_data(
-                    self.options,
-                    extra_commands=extra_commands or None,
-                    disabled_commands=disabled_commands or None,
-                ),
+                self._async_get_data_with_compatibility(async_get_data_kwargs),
                 timeout=self._fetch_timeout,
             )
             if new_data is None:
@@ -150,3 +152,18 @@ class NissanLeafObdBleDataUpdateCoordinator(DataUpdateCoordinator):
         self._fetch_timeout = float(
             options.get("fetch_timeout", DEFAULT_FETCH_TIMEOUT)
         )
+
+    async def _async_get_data_with_compatibility(
+        self, async_get_data_kwargs: dict[str, Any]
+    ):
+        """Call async_get_data with the broadest supported signature."""
+        try:
+            return await self.api.async_get_data(self.options, **async_get_data_kwargs)
+        except TypeError as err:
+            if "unexpected keyword argument" not in str(err):
+                raise
+            _LOGGER.debug(
+                "Installed py-nissan-leaf-obd-ble does not support override kwargs; retrying with options-only call: %s",
+                err,
+            )
+            return await self.api.async_get_data(self.options)
