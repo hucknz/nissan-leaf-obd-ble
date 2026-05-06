@@ -16,7 +16,14 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.typing import ConfigType
 
 from py_nissan_leaf_obd_ble import NissanLeafObdBleApiClient
-from .const import DOMAIN, PLATFORMS, STARTUP_MESSAGE
+from .const import (
+    CONF_VEHICLE_GENERATION,
+    DEFAULT_VEHICLE_GENERATION,
+    VEHICLE_GENERATION_GEN1,
+    DOMAIN,
+    PLATFORMS,
+    STARTUP_MESSAGE,
+)
 from .coordinator import NissanLeafObdBleDataUpdateCoordinator
 from .overrides import load_overrides
 
@@ -45,8 +52,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     api = NissanLeafObdBleApiClient(ble_device)
 
+    generation = entry.data.get("generation")
+    if generation is None:
+        generation = (
+            "ze0"
+            if (entry.options or {}).get(
+                CONF_VEHICLE_GENERATION, DEFAULT_VEHICLE_GENERATION
+            )
+            == VEHICLE_GENERATION_GEN1
+            else "ze1"
+        )
+
     extra_commands, extra_sensor_descriptions, disabled_commands = (
-        await hass.async_add_executor_job(load_overrides, hass, address)
+        await hass.async_add_executor_job(
+            load_overrides,
+            hass,
+            address,
+            generation,
+        )
     )
 
     coordinator = NissanLeafObdBleDataUpdateCoordinator(
@@ -54,6 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         address=address,
         api=api,
         options=entry.options or {},
+        generation=generation,
         extra_commands=extra_commands,
         extra_sensor_descriptions=extra_sensor_descriptions,
         disabled_commands=disabled_commands,

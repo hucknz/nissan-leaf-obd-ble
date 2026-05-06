@@ -5,11 +5,13 @@
         "title": "Configure BLE UUIDs",
         "description": "Leave defaults unless your OBD dongle uses non-standard GATT UUIDs.",
         "data": {
+          "vehicle_generation": "Leaf generation",
           "service_uuid": "BLE service UUID",
           "characteristic_uuid_read": "BLE read characteristic UUID",
           "characteristic_uuid_write": "BLE write characteristic UUID"
         },
         "data_description": {
+          "vehicle_generation": "Choose your Leaf generation so the integration uses the correct built-in decoder mappings.",
           "service_uuid": "GATT service UUID used to connect to the OBD BLE dongle.",
           "characteristic_uuid_read": "GATT characteristic UUID for receiving data from the dongle.",
           "characteristic_uuid_write": "GATT characteristic UUID for sending commands to the dongle."
@@ -27,6 +29,7 @@
           "fast_poll": "Fast polling interval (s)",
           "slow_poll": "Slow polling interval (s)",
           "xs_poll": "Extra slow polling interval (s)",
+          "vehicle_generation": "Leaf generation",
           "service_uuid": "BLE service UUID",
           "characteristic_uuid_read": "BLE read characteristic UUID",
           "characteristic_uuid_write": "BLE write characteristic UUID"
@@ -36,6 +39,7 @@
           "fast_poll": "Polling rate to use when actively getting data from the car.",
           "slow_poll": "Polling rate to use when the car is in range, but turned off.",
           "xs_poll": "Polling rate to use when the car is out of range. Home Assistant will listen for bluetooth advertisements and update immediately if the car comes back into range.",
+          "vehicle_generation": "Choose your Leaf generation so the integration uses the correct built-in decoder mappings.",
           "service_uuid": "GATT service UUID used to connect to the OBD BLE dongle.",
           "characteristic_uuid_read": "GATT characteristic UUID for receiving data from the dongle.",
           "characteristic_uuid_write": "GATT characteristic UUID for sending commands to the dongle."

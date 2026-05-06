@@ -24,12 +24,21 @@ from .const import (
     CONF_SERVICE_UUID,
     CONF_CHARACTERISTIC_UUID_READ,
     CONF_CHARACTERISTIC_UUID_WRITE,
+    CONF_VEHICLE_GENERATION,
     DEFAULT_SERVICE_UUID,
     DEFAULT_CHARACTERISTIC_UUID_READ,
     DEFAULT_CHARACTERISTIC_UUID_WRITE,
+    DEFAULT_VEHICLE_GENERATION,
+    VEHICLE_GENERATION_GEN1,
+    VEHICLE_GENERATION_GEN2,
 )
 
 LOCAL_NAMES = {"OBDBLE"}
+LEAF_GENERATIONS = {
+    "ze1": "ZE1 (2018+, 40/62 kWh)",
+    "aze0": "AZE0 (2013–2017, 24/30 kWh)",
+    "ze0": "ZE0 (2010–2012, 24 kWh)",
+}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -44,6 +53,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
         self._selected_device: BluetoothServiceInfoBleak | None = None
+        self._selected_generation = "ze1"
 
     @staticmethod
     @callback
@@ -73,6 +83,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             address = user_input[CONF_ADDRESS]
+            self._selected_generation = user_input["generation"]
             discovery_info = self._discovered_devices[address]
             await self.async_set_unique_id(
                 discovery_info.address, raise_on_progress=False
@@ -108,6 +119,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         for service_info in self._discovered_devices.values()
                     }
                 ),
+                vol.Required("generation", default="ze1"): vol.In(LEAF_GENERATIONS),
             }
         )
         return self.async_show_form(
@@ -123,7 +135,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return self.async_create_entry(
                 title=self._selected_device.name,
-                data={CONF_ADDRESS: self._selected_device.address},
+                data={
+                    CONF_ADDRESS: self._selected_device.address,
+                    "generation": self._selected_generation,
+                },
                 options=user_input,
             )
         return self.async_show_form(
@@ -181,6 +196,16 @@ class NissanLeafObdBleOptionsFlowHandler(config_entries.OptionsFlow):
                     vol.Required(
                         "xs_poll", default=self.options.get("xs_poll", 3600)
                     ): int,
+                    vol.Required(
+                        CONF_VEHICLE_GENERATION,
+                        default=self.options.get(CONF_VEHICLE_GENERATION)
+                        or DEFAULT_VEHICLE_GENERATION,
+                    ): vol.In(
+                        {
+                            VEHICLE_GENERATION_GEN1: "Gen 1 (ZE0/AZE0, 2011-2017)",
+                            VEHICLE_GENERATION_GEN2: "Gen 2 (ZE1, 2018+)",
+                        }
+                    ),
                     vol.Optional(
                         CONF_SERVICE_UUID,
                         default=self.options.get(CONF_SERVICE_UUID)

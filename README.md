@@ -82,9 +82,10 @@ When your Leaf pulls into the garage, this integration automatically connects ov
 The integration is configured via the UI (Config Flow). You will be prompted for:
 
 - **BLE device address** — the MAC address of your LeLink2 / ELM327 adapter (e.g. `AA:BB:CC:DD:EE:FF`). You can find this in **Settings → Devices & Services → Bluetooth** after bringing the LeLink2 dongle within range.
+- **Leaf generation** — choose **Gen 1 (ZE0/AZE0, 2011-2017)** or **Gen 2 (ZE1, 2018+)** so built-in decoder mappings match your car.
 - **Scan interval** — how often (in seconds) to attempt a BLE connection and poll data when the device is detected.
 
-After setup, open the device and click **Configure** to adjust **polling intervals** (fast / slow / extra-slow), **cache behaviour** (keep sensor values when out of range), and **BLE UUIDs** (service, read characteristic, write characteristic). Use the UUID options if your dongle uses different GATT UUIDs than the default LeLink ones; see [Other dongles and automatic discovery](#other-dongles-and-automatic-discovery) below.
+After setup, open the device and click **Configure** to adjust **polling intervals** (fast / slow / extra-slow), **cache behaviour** (keep sensor values when out of range), **Leaf generation**, and **BLE UUIDs** (service, read characteristic, write characteristic). Use the UUID options if your dongle uses different GATT UUIDs than the default LeLink ones; see [Other dongles and automatic discovery](#other-dongles-and-automatic-discovery) below.
 
 ---
 
@@ -146,6 +147,8 @@ Nissan Leaf CAN bus
 ## Overriding OBD Commands and Decoders
 
 Different Nissan Leaf generations and trim levels use different OBD PIDs and message formats. Rather than waiting for a new package release, you can override any command directly in your Home Assistant config directory.
+
+For common Gen 1 vs Gen 2 differences, first use the built-in **Leaf generation** selector in the config flow/options flow. Use overrides only for edge cases beyond those built-in mappings.
 
 ### Quick start
 

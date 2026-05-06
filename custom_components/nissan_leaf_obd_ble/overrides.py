@@ -17,7 +17,11 @@ from homeassistant.core import HomeAssistant
 from py_nissan_leaf_obd_ble.OBDCommand import OBDCommand
 from py_nissan_leaf_obd_ble.commands import leaf_commands
 
-from .const import DECODERS_MODULE_FILE, OVERRIDES_FILE
+from .const import (
+    DECODERS_MODULE_FILE,
+    OVERRIDES_FILE,
+    VEHICLE_GENERATION_GEN1,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +46,7 @@ _STATE_CLASSES: dict[str, SensorStateClass] = {
 
 
 def load_overrides(
-    hass: HomeAssistant, address: str
+    hass: HomeAssistant, address: str, vehicle_generation: str | None = None
 ) -> tuple[dict[str, OBDCommand], dict[str, SensorEntityDescription], set[str]]:
     """Return (extra_commands, extra_sensor_descriptions, disabled_commands) for a BLE address.
 
@@ -56,18 +60,22 @@ def load_overrides(
     if decoders_path.exists():
         python_module = _load_python_module(decoders_path)
 
+    extra_commands, extra_sensor_descriptions, disabled_commands = _generation_defaults(
+        vehicle_generation
+    )
+
     if not overrides_path.exists():
-        return {}, {}, set()
+        return extra_commands, extra_sensor_descriptions, disabled_commands
 
     try:
         with open(overrides_path) as f:
             config = yaml.safe_load(f)
     except Exception as err:
         _LOGGER.error("Failed to load %s: %s", overrides_path, err)
-        return {}, {}, set()
+        return extra_commands, extra_sensor_descriptions, disabled_commands
 
     if not config:
-        return {}, {}, set()
+        return extra_commands, extra_sensor_descriptions, disabled_commands
 
     # Merge _all_ entries with address-specific entries; address-specific wins on conflict
     command_entries: dict[str, Any] = {}
@@ -76,10 +84,6 @@ def load_overrides(
     address_upper = address.upper()
     if address_upper in config:
         command_entries.update(((config[address_upper] or {}).get("commands", {})))
-
-    extra_commands: dict[str, OBDCommand] = {}
-    extra_sensor_descriptions: dict[str, SensorEntityDescription] = {}
-    disabled_commands: set[str] = set()
 
     for key, entry in command_entries.items():
         entry = entry or {}
@@ -103,6 +107,75 @@ def load_overrides(
                 _LOGGER.error("Invalid sensor definition for command '%s': %s", key, err)
 
     return extra_commands, extra_sensor_descriptions, disabled_commands
+
+
+def _generation_defaults(
+    vehicle_generation: str | None,
+) -> tuple[dict[str, OBDCommand], dict[str, SensorEntityDescription], set[str]]:
+    """Return built-in generation-specific command overrides."""
+    if vehicle_generation not in (VEHICLE_GENERATION_GEN1, "ze0", "aze0"):
+        return {}, {}, set()
+
+    lbc_base = leaf_commands.get("lbc")
+    if lbc_base is None:
+        return {}, {}, set()
+
+    # Older ZE0/AZE0 Leafs can report LBC payload fields at different offsets.
+    # Prefer the legacy mapping but fall back to the current library mapping
+    # if values are clearly out of range.
+    lbc_override = OBDCommand(
+        lbc_base.name,
+        lbc_base.desc,
+        lbc_base.command,
+        lbc_base.bytes,
+        _decode_lbc_gen1,
+        lbc_base.header,
+    )
+    return {"lbc": lbc_override}, {}, set()
+
+
+def _decode_lbc_gen1(messages):
+    """Decode LBC payload for Gen1 Leafs with a guarded legacy mapping."""
+    d = messages[0].data
+    if len(d) == 0:
+        return None
+
+    hv_battery_current_1 = int.from_bytes(d[2:6], byteorder="big", signed=False)
+    hv_battery_current_2 = int.from_bytes(d[8:12], byteorder="big", signed=False)
+    if (hv_battery_current_1 & 0x8000000) == 0x8000000:
+        hv_battery_current_1 = hv_battery_current_1 | -0x100000000
+    if (hv_battery_current_2 & 0x8000000) == 0x8000000:
+        hv_battery_current_2 = hv_battery_current_2 | -0x100000000
+
+    legacy = {
+        "state_of_charge": int.from_bytes(d[30:34], "big") / 10000,
+        "hv_battery_health": int.from_bytes(d[28:30], "big") / 102.4,
+        "hv_battery_Ah": int.from_bytes(d[34:38], "big") / 10000,
+    }
+    current = {
+        "state_of_charge": int.from_bytes(d[33:36], "big") / 10000,
+        "hv_battery_health": int.from_bytes(d[30:32], "big") / 102.4,
+        "hv_battery_Ah": int.from_bytes(d[37:40], "big") / 10000,
+    }
+
+    lbc_values = legacy if _lbc_values_look_valid(legacy) else current
+    lbc_values.update(
+        {
+            "hv_battery_current_1": hv_battery_current_1 / 1024,
+            "hv_battery_current_2": hv_battery_current_2 / 1024,
+            "hv_battery_voltage": int.from_bytes(d[20:22], "big") / 100,
+        }
+    )
+    return lbc_values
+
+
+def _lbc_values_look_valid(values: dict[str, float]) -> bool:
+    """Basic range check to reject obviously mis-decoded payloads."""
+    return (
+        0 <= values["state_of_charge"] <= 100
+        and 0 <= values["hv_battery_health"] <= 150
+        and 0 < values["hv_battery_Ah"] <= 120
+    )
 
 
 def _load_python_module(path: Path):

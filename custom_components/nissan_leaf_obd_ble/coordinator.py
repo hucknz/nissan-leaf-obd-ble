@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from py_nissan_leaf_obd_ble import NissanLeafObdBleApiClient
+from py_nissan_leaf_obd_ble.commands import leaf_commands
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class NissanLeafObdBleDataUpdateCoordinator(DataUpdateCoordinator):
         address: str,
         api: NissanLeafObdBleApiClient,
         options,
+        generation: str,
         extra_commands=None,
         extra_sensor_descriptions=None,
         disabled_commands=None,
@@ -61,6 +63,7 @@ class NissanLeafObdBleDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self._address = address
         self.api = api
+        self.generation = generation
         self._cache_data: dict[str, Any] = {}
         self.extra_commands = extra_commands or {}
         self.extra_sensor_descriptions = extra_sensor_descriptions or {}
@@ -86,11 +89,21 @@ class NissanLeafObdBleDataUpdateCoordinator(DataUpdateCoordinator):
             return {}
 
         try:
+            if self.generation in ("ze0", "aze0"):
+                extra_commands = {
+                    **self.extra_commands,
+                    "odometer": leaf_commands["odometer_can"],
+                }
+                disabled_commands = (self.disabled_commands or set()) | {"odometer"}
+            else:
+                extra_commands = self.extra_commands
+                disabled_commands = self.disabled_commands
+
             new_data = await asyncio.wait_for(
                 self.api.async_get_data(
                     self.options,
-                    extra_commands=self.extra_commands or None,
-                    disabled_commands=self.disabled_commands or None,
+                    extra_commands=extra_commands or None,
+                    disabled_commands=disabled_commands or None,
                 ),
                 timeout=self._fetch_timeout,
             )
