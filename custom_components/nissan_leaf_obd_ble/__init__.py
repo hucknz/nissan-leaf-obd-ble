@@ -111,6 +111,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     async def update_options_listener(hass: HomeAssistant | None, entry: ConfigEntry):
         """Handle options update."""
         coordinator.options = entry.options
+        # Recompute generation: prefer explicit entry.data, otherwise map old option to new generation
+        new_generation = entry.data.get("generation")
+        if new_generation is None:
+            if (entry.options or {}).get(CONF_VEHICLE_GENERATION) == VEHICLE_GENERATION_GEN1:
+                new_generation = "ze0"
+            else:
+                new_generation = "ze1"
+
+        if getattr(coordinator, "generation", None) != new_generation:
+            extra_commands, extra_sensor_descriptions, disabled_commands = (
+                await hass.async_add_executor_job(
+                    load_overrides,
+                    hass,
+                    address,
+                    new_generation,
+                )
+            )
+            coordinator.extra_commands = extra_commands
+            coordinator.extra_sensor_descriptions = extra_sensor_descriptions
+            coordinator.disabled_commands = disabled_commands
+            coordinator.generation = new_generation
+        # Ask for an immediate refresh to pick up new overrides
+        hass.async_create_task(coordinator.async_request_refresh())
 
     entry.async_on_unload(
         entry.add_update_listener(update_options_listener)

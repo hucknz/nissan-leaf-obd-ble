@@ -198,8 +198,16 @@ class NissanLeafObdBleOptionsFlowHandler(config_entries.OptionsFlow):
                     ): int,
                     vol.Required(
                         CONF_VEHICLE_GENERATION,
-                        default=self.options.get(CONF_VEHICLE_GENERATION)
-                        or DEFAULT_VEHICLE_GENERATION,
+                        default=(
+                            self.options.get(CONF_VEHICLE_GENERATION)
+                            or (
+                                VEHICLE_GENERATION_GEN1
+                                if (self.config_entry.data.get("generation") in ("ze0", "aze0"))
+                                else VEHICLE_GENERATION_GEN2
+                            )
+                            if self.config_entry is not None
+                            else DEFAULT_VEHICLE_GENERATION
+                        ),
                     ): vol.In(
                         {
                             VEHICLE_GENERATION_GEN1: "Gen 1 (ZE0/AZE0, 2011-2017)",
