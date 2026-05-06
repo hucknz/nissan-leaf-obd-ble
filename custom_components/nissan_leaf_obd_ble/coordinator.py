@@ -109,6 +109,20 @@ class NissanLeafObdBleDataUpdateCoordinator(DataUpdateCoordinator):
                 self._async_get_data_with_compatibility(async_get_data_kwargs),
                 timeout=self._fetch_timeout,
             )
+            _LOGGER.debug(
+                "Generation=%s injected_override_keys=%s",
+                self.generation,
+                list(async_get_data_kwargs.keys()),
+            )
+            try:
+                _LOGGER.debug(
+                    "Fetched data keys=%s",
+                    list(new_data.keys()) if isinstance(new_data, dict) else repr(new_data),
+                )
+                if isinstance(new_data, dict) and "odometer" in new_data:
+                    _LOGGER.debug("Fetched odometer value: %s", new_data.get("odometer"))
+            except Exception:
+                _LOGGER.debug("Fetched data (non-dict): %s", repr(new_data))
             if new_data is None:
                 raise UpdateFailed("Failed to connect to OBD device")
             if len(new_data) == 0:
